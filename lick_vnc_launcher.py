@@ -160,6 +160,9 @@ class LickVncLauncher(object):
         self.check_cmd      = None
         self.check_cmd_args = None
 
+        # these are variables for the details of soundplay
+        # probably these should be part of the sound object
+        # which is a separate class
         self.soundplayer   = None
         self.soundplaytags = ":1,:2,:3,:4,:5,:6"
         self.aplay         = None
