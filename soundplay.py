@@ -69,15 +69,16 @@ class soundplay(object):
         Return full path to file in same directory as this script
         '''
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "soundplayer",filename)
-        
+
 
     def check_existing_process(self, server, port, instrument):
         '''
         Use system ps command to look for processes connected to same server/port/instr combo
         '''
         #todo: fix this to use proper cmd array and shell=False
-        cmd = f'ps -elf | grep soundplay | grep "{server}:{port}" | grep {instrument} | grep -v grep'
-        log.debug('Checking for existing soundplay process: ' + cmd)
+        cmd = f'ps -elf | grep soundplay | grep "{server}:{port}" '
+        cmd += f'| grep {instrument} | grep -v grep'
+        log.debug(f'Checking for existing soundplay process: {cmd}')
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
         data = proc.communicate()[0]
         data = data.decode("utf-8").strip()
@@ -127,7 +128,7 @@ def create_logger():
         log.addHandler(logConsoleHandler)
 
     except Exception as error:
-        print (f"ERROR: Unable to create logger")
+        print ("ERROR: Unable to create logger")
         print (str(error))
 
 
@@ -144,11 +145,16 @@ if __name__ == "__main__":
 
     # arg parser
     parser = argparse.ArgumentParser(description="Start Lick event sounds player.")
-    parser.add_argument("instrument",   type=str,                                           help="Instrument to get event sounds for.")
-    parser.add_argument("--server",     type=str,   dest="server",  default=None,           help="IP name or address of sound server to connect to. Will query for value if not given.")
-    parser.add_argument("--port",       type=int,   dest="port",    default=9798,           help="Server port where soundplayer should connect. Default is standard.")
-    parser.add_argument("--player",     type=str,   dest="player",  default='soundplay',    help="Lick soundplay executable filename to use in soundplayer folder.")
-    parser.add_argument("--aplay",      type=str,   dest="aplay",   default='aplay',        help="Full path to local system command-line sound player.")
+    parser.add_argument("instrument",   type=str, \
+                        help="Instrument to get event sounds for.")
+    parser.add_argument("--server",     type=str,   dest="server",  default=None,\
+                        help="IP name or address of sound server to connect to. Will query for value if not given.")
+    parser.add_argument("--port",       type=int,   dest="port",    default=9798,\
+                        help="Server port where soundplayer should connect. Default is standard.")
+    parser.add_argument("--player",     type=str,   dest="player",  default='soundplay',\
+                        help="Lick soundplay executable filename to use in soundplayer folder.")
+    parser.add_argument("--aplay",      type=str,   dest="aplay",   default='aplay',\
+                        help="Full path to local system command-line sound player.")
     args = parser.parse_args()
 
 
@@ -159,7 +165,8 @@ if __name__ == "__main__":
 
     #start soundplay
     sp = soundplay()
-    ok = sp.connect(args.instrument, server=args.server, port=args.port, aplay=args.aplay, player=args.player)
+    ok = sp.connect(args.instrument, server=args.server, port=args.port, \
+                    aplay=args.aplay, player=args.player)
     if not ok:
         sys.exit(1)
 
@@ -172,4 +179,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     finally:
-        if sp: sp.terminate()
+        if sp: 
+            sp.terminate()
