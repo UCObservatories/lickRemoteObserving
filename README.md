@@ -268,10 +268,14 @@ Obtain the OpenVPN (ovpn) file for your schedule observing run.
     connect button to start the VPN.
 
   - **For Linux**: Install the certificate using appropriate
-	commands, or the NetworkManager GUI.  If NetworkManager is used it will
-	by default try to route all traffic through the VPN. That will prevent network
-	connections to anywhere other than the MH VNC hosts, which means no Zoom,
-	no browser, no other network traffic. Tell NetworkManager not to
+	commands, or the NetworkManager GUI.
+
+	```nmcli connection import type openvpn file Nickel20200507.ovpn```
+ 
+    If NetworkManager is used it will by default try to route all traffic
+    through the VPN. That will prevent network connections to anywhere
+    other than the MH VNC hosts, which means no Zoom, no browser,
+    no other network traffic. Tell NetworkManager not to
 	route all traffic through the VPN using a command like the
 	examples below
 
