@@ -1257,8 +1257,11 @@ class LickVncLauncher(object):
             self.log.debug(trace)
             self.exit_app('Failed at obtaining list of VNC sessions, see log.')
 
-        if data is None:
+        if data is None or data == '':
             self.exit_app('Failed at obtaining list of VNC sessions, see log.')
+        if re.search('Connection refused', data):
+            self.exit_app('Failed at obtaining list of VNC sessions, ssh connection refused, see log.')
+
 
         self.ssh_key_valid = True
         lns = data.split("\n")
@@ -1271,12 +1274,12 @@ class LickVncLauncher(object):
                 # this should not happen
                 self.log.error(f'{self.tel} not supported on host {vncserver}')
                 break
-                
+
             desktop = fields[1].strip()
             name = ln.strip()
             s = VNCSession(name=name, display=display, desktop=desktop, user=account)
             sessions.append(s)
-                
+
         self.log.debug(f'  Got {len(sessions)} sessions')
         for s in sessions:
             self.log.debug(str(s))
