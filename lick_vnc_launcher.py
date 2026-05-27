@@ -1082,6 +1082,9 @@ class LickVncLauncher(object):
             command.append('-i')
             command.append(self.ssh_pkey)
 
+        command.append('-o')
+        command.append('KexAlgorithms=+diffie-hellman-group1-sha1')
+
         command.append(cmd)
         self.log.debug('ssh command: %s' % (' '.join (command)))
 
