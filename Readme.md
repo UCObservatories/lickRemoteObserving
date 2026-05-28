@@ -2,5 +2,6 @@
 
 These scripts are to be used by remote sites to connect to Lick for remote observing.
 
-Please see:
-[Installation instructions](https://mthamilton.ucolick.org/techdocs/remoteObs/homeobserving/install/)
+- [Installation instructions](https://mthamilton.ucolick.org/techdocs/remoteObs/homeobserving/install/)
+
+- [Click here to download the software as a zipfile](https://github.com/bpholden/lickRemoteObserving/archive/refs/tags/v1.37.zip)
