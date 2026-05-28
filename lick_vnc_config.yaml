@@ -43,10 +43,11 @@ local_port_start: 5901
 # soundplayer: 'soundplay-107050-8.6.3-macosx10.5-ix86+x86_64'
 ## "aplay" is the path to command-line sound player.
 # Default for soundplay for macosx is afplay
-# Default for soundplay under Linux is play
+# Default for soundplay under Linux is either play or ffplay
 # Change the value of the aplay configuration variable to update this
 # aplay: '/usr/bin/play -q -v %v %s '
 # aplay: '/usr/bin/afplay -v %v %s '
+# aplay: '/usr/bin/ffplay -volume %v -nodisp -autoexit %s '
 ## Finally soundplay only sends certain sounds based on the tags
 ## The value below is the default and sends sounds from the 6 VNC desktops
 # soundplaytags: :1,:2,:3,:4,:5,:6

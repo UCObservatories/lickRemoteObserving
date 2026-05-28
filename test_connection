@@ -6,7 +6,7 @@ CONDA=`which conda 2> /dev/null`
 if [ "$CONDA" != "" ]; then
     CONDA_BASE=$(conda info --base)
     source $CONDA_BASE/etc/profile.d/conda.sh
-    conda activate KRO
+    conda activate LRO
 fi
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR
