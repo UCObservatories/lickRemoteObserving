@@ -1,44 +1,66 @@
 #!/usr/bin/python
 from __future__ import print_function
 import subprocess
-import re 
+import re
 
-cmd = 'ps -C Xvnc -o args'
-cmdargs = cmd.split()
-data = subprocess.check_output(cmdargs)
 
-lines = data.split("\n")
-names = []
-numbers = []
-for ln in lines:
-    if ln == 'COMMAND':
-        continue
-    # oh boy! parsing!
-    # the format of the args are executable, desktop args as key value pairs
-    # keys start with a '-'
-    curargs = ln.split()
-    if len(curargs) < 3:
-        continue
-    desktop = curargs[1]
+def run_ps():
+    """
+    Run the ps command to get the list of Xvnc processes and their arguments.
+    """
+    cmd = 'ps -C Xvnc -o args'
+    cmdargs = cmd.split()
+    data = subprocess.check_output(cmdargs)
+    return data.decode("utf-8")
 
-    mtch = re.search("\:(\d+)",desktop)
-    if mtch:
-        numbers.append(mtch.group(1))
 
-    nextargs = False
-    name = '' 
-    for n in range(2,len(curargs)):
-        mtch = re.search("\A-",curargs[n])
-        if curargs[n] == '-desktop':
-            nextargs = True
-            name = ''
-        elif nextargs and mtch is None:
-            nmtch = re.search("\:\d+",curargs[n])
-            if nmtch is None:
-                name = name +' ' + curargs[n]
-        elif nextargs and mtch :
-            names.append(name)
-            nextargs = False
-    
-for n in range(0,len(numbers)):
-    print ( numbers[n], names[n])
+def parse_ps(data):
+    """
+    Parse the output of the ps command to extract the VNC display numbers
+    and names.
+    """
+    lines = data.split("\n")
+    names = []
+    numbers = []
+    for ln in lines:
+        if ln == 'COMMAND':
+            continue
+        # oh boy! parsing!
+        # the format of the args are executable, desktop args as key value pairs
+        # keys start with a '-'
+        curargs = ln.split()
+        if len(curargs) < 3:
+            continue
+        desktop = curargs[1]
+
+        mtch = re.search(r"\:(\d+)",desktop)
+        if mtch:
+            numbers.append(mtch.group(1))
+
+        nextargs = False
+        name = ''
+        for n in range(2,len(curargs)):
+            mtch = re.search(r"\A-",curargs[n])
+            if curargs[n] == '-desktop':
+                nextargs = True
+                name = ''
+            elif nextargs and mtch is None:
+                nmtch = re.search(r"\:\d+",curargs[n])
+                if nmtch is None:
+                    name = name +' ' + curargs[n]
+            elif nextargs and mtch :
+                names.append(name)
+                nextargs = False
+
+    return numbers, names
+
+def main():
+    data = run_ps()
+    numbers, names = parse_ps(data)
+    #print("VNC sessions:")
+    for n in range(0,len(numbers)):
+        outstr = numbers[n] + ' - ' + names[n]
+        print(outstr)
+
+if __name__ == "__main__":
+    main()
