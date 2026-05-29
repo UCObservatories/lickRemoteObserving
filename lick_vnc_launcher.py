@@ -153,7 +153,6 @@ class LickVncLauncher(object):
         self.ssh_key_valid      = False
         self.ssh_account        = 'user'
         self.ssh_server         = '128.114.176.21'
-        self.ssh_additional_kex = '+diffie-hellman-group1-sha1'
 
         self.exit = False
 
@@ -762,8 +761,6 @@ class LickVncLauncher(object):
         command = [self.ssh_cmd, '-l', username, '-L', forwarding, '-N', '-T', server]
         command.append('-oStrictHostKeyChecking=no')
         command.append('-oCompression=yes')
-        if self.ssh_additional_kex is not None:
-            command.append('-oKexAlgorithms=' + self.ssh_additional_kex)
 
         if ssh_pkey is not None:
             command.append('-i')
@@ -1243,8 +1240,13 @@ class LickVncLauncher(object):
         account - account on vncserver running the VNC sessions
 
         Connects to vncserver through account using do_ssh_cmd.
-        Runs the remote task vncstatus and finds the VNC sessions associated
-        with the telescope
+        Runs the remote task vncstatus and finds the VNC sessions 
+        associated with the telescope
+
+        Returns a list of VNCSession objects, which have the properties
+        name - the name of the session as given by vncstatus
+        display - the display number of the session, used to connect to it
+        desktop - the desktop name of the session, used for logging and display
 
         '''
 
@@ -1268,13 +1270,17 @@ class LickVncLauncher(object):
         if re.search('Connection refused', data):
             self.exit_app('Failed at obtaining list of VNC sessions, ssh connection refused, see log.')
 
-
         self.ssh_key_valid = True
         lns = data.split("\n")
         for ln in lns:
             if ln[0] == "#":
                 continue
+            mtch = re.search(r'\d+\s+\-\s+', ln)
+            if not mtch:
+                continue
             fields = ln.split('-')
+            if len(fields) < 2:
+                continue
             display = fields[0].strip()
             if display == 'Usage':
                 # this should not happen
@@ -1683,6 +1689,7 @@ class LickVncLauncher(object):
         self.test_connection()
         server = self.servers_names[self.args.account]
         self.test_connection_to_servers(server)
+        self.test_vncstatus()
 
 
     ##-------------------------------------------------------------------------
@@ -1770,7 +1777,22 @@ class LickVncLauncher(object):
         assert output != ''
         assert output.strip() in [server, result]
         self.log.info(' Passed')
+    def test_vncstatus(self):
+        '''
+        test_vncstatus(self)
 
+        Tests the vncstatus command on the remote host to see if it is working
+        and returning the expected output.
+        '''
+        vnc_account = self.ssh_account
+        vncserver = self.servers_to_try[self.tel]
+        self.log.info('Testing vncstatus command on %s@%s' % (vnc_account,vncserver))
+        sessions = self.get_vnc_sessions(vnc_account)
+        assert sessions is not None
+        assert sessions != ''
+        assert len(sessions) > 0
+        assert isinstance(sessions[0], VNCSession)
+        self.log.info(' Passed')
 
 
 ##-------------------------------------------------------------------------
