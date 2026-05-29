@@ -22,7 +22,7 @@ import yaml
 
 import soundplay
 
-__version__ = '1.36'
+__version__ = '1.37'
 
 ##-------------------------------------------------------------------------
 ## Start from command line
@@ -125,6 +125,10 @@ class LickVncLauncher(object):
         self.sound   = None
         self.tel     = None
         self.args    = None
+        self.log     = None
+        self.novpn   = False
+        self.local_port = None
+        self.ping_cmd   = None
 
         self.ports_in_use   = {}
         self.vnc_threads    = []
@@ -149,13 +153,15 @@ class LickVncLauncher(object):
         self.ssh_key_valid      = False
         self.ssh_account        = 'user'
         self.ssh_server         = '128.114.176.21'
-        self.ssh_additional_kex = '+diffie-hellman-group1-sha1'
 
         self.exit = False
 
         self.check_cmd      = None
         self.check_cmd_args = None
 
+        # these are variables for the details of soundplay
+        # probably these should be part of the sound object
+        # which is a separate class
         self.soundplayer   = None
         self.soundplaytags = ":1,:2,:3,:4,:5,:6"
         self.aplay         = None
@@ -755,8 +761,6 @@ class LickVncLauncher(object):
         command = [self.ssh_cmd, '-l', username, '-L', forwarding, '-N', '-T', server]
         command.append('-oStrictHostKeyChecking=no')
         command.append('-oCompression=yes')
-        if self.ssh_additional_kex is not None:
-            command.append('-oKexAlgorithms=' + self.ssh_additional_kex)
 
         if ssh_pkey is not None:
             command.append('-i')
@@ -1041,14 +1045,9 @@ class LickVncLauncher(object):
 
         account - the name of the telescope to be connected to.
 
-
         '''
         if account is None:
             return
-
-        instruments = {'apf' : 'apf',
-                           'shane' : 'kast',
-                           'nickel' : 'nickel'}
 
         telescope = ('apf','shane','nickel')
 
@@ -1080,8 +1079,11 @@ class LickVncLauncher(object):
             command.append('-i')
             command.append(self.ssh_pkey)
 
+        command.append('-o')
+        command.append('KexAlgorithms=+diffie-hellman-group1-sha1')
+
         command.append(cmd)
-        self.log.debug('ssh command: ' + ' '.join (command))
+        self.log.debug('ssh command: %s' % (' '.join (command)))
 
         pipe = subprocess.PIPE
         null = subprocess.DEVNULL
@@ -1121,7 +1123,10 @@ class LickVncLauncher(object):
         output = []
 
         for ln in lines:
-            if 'Warning: ' in ln:
+            if '**' in ln:
+                self.log.debug('Removed warning from command output:')
+                self.log.debug(ln)
+            elif 'Warning' in ln:
                 self.log.debug('Removed warning from command output:')
                 self.log.debug(ln)
             else:
@@ -1235,8 +1240,13 @@ class LickVncLauncher(object):
         account - account on vncserver running the VNC sessions
 
         Connects to vncserver through account using do_ssh_cmd.
-        Runs the remote task vncstatus and finds the VNC sessions associated
-        with the telescope
+        Runs the remote task vncstatus and finds the VNC sessions 
+        associated with the telescope
+
+        Returns a list of VNCSession objects, which have the properties
+        name - the name of the session as given by vncstatus
+        display - the display number of the session, used to connect to it
+        desktop - the desktop name of the session, used for logging and display
 
         '''
 
@@ -1255,26 +1265,33 @@ class LickVncLauncher(object):
             self.log.debug(trace)
             self.exit_app('Failed at obtaining list of VNC sessions, see log.')
 
-        if data is None:
+        if data is None or data == '':
             self.exit_app('Failed at obtaining list of VNC sessions, see log.')
+        if re.search('Connection refused', data):
+            self.exit_app('Failed at obtaining list of VNC sessions, ssh connection refused, see log.')
 
         self.ssh_key_valid = True
         lns = data.split("\n")
         for ln in lns:
             if ln[0] == "#":
                 continue
+            mtch = re.search(r'\d+\s+\-\s+', ln)
+            if not mtch:
+                continue
             fields = ln.split('-')
+            if len(fields) < 2:
+                continue
             display = fields[0].strip()
             if display == 'Usage':
                 # this should not happen
                 self.log.error(f'{self.tel} not supported on host {vncserver}')
                 break
-                
+
             desktop = fields[1].strip()
             name = ln.strip()
             s = VNCSession(name=name, display=display, desktop=desktop, user=account)
             sessions.append(s)
-                
+
         self.log.debug(f'  Got {len(sessions)} sessions')
         for s in sessions:
             self.log.debug(str(s))
@@ -1330,7 +1347,6 @@ class LickVncLauncher(object):
         '''
 
         self.log.debug('Determining display info')
-        self.geometry = list()
         try:
             xpdyinfo = subprocess.run('xdpyinfo', stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE, timeout=5)
@@ -1353,25 +1369,25 @@ class LickVncLauncher(object):
 
         stdout = xpdyinfo.stdout.decode()
         if xpdyinfo.returncode != 0:
-             self.log.debug(f'xpdyinfo failed')
-             for line in stdout.split('\n'):
-                 self.log.debug(f"xdpyinfo: {line}")
-             stderr = xpdyinfo.stderr.decode()
-             for line in stderr.split('\n'):
-                 self.log.debug(f"xdpyinfo: {line}")
-             return None
+            self.log.debug('xpdyinfo failed')
+            for line in stdout.split('\n'):
+                self.log.debug("xdpyinfo: %s" % line)
+            stderr = xpdyinfo.stderr.decode()
+            for line in stderr.split('\n'):
+                self.log.debug("xdpyinfo: %s" % line)
+            return None
         find_nscreens = re.search(r'number of screens:\s+(\d+)', stdout)
         nscreens = int(find_nscreens.group(1)) if find_nscreens is not None else 1
-        self.log.debug(f'Number of screens = {nscreens}')
+        self.log.debug('Number of screens = %d' % nscreens)
 
         find_dimensions = re.findall(r'dimensions:\s+(\d+)x(\d+)', stdout)
         if len(find_dimensions) == 0:
-            self.log.debug(f'Could not find screen dimensions')
+            self.log.debug('Could not find screen dimensions')
             return None
         # convert values from strings to int
         self.screens = [[int(val) for val in line] for line in find_dimensions]
         for screen in self.screens:
-            self.log.debug(f"Screen size: {screen[0]}x{screen[1]}")
+            self.log.debug("Screen size: %dx%d" % (screen[0], screen[1]))
 
 
     def calc_window_geometry(self):
@@ -1437,42 +1453,36 @@ class LickVncLauncher(object):
             cmd = input(menu).lower()
             cmatch = re.match(r'c (\d+)', cmd)
             nmatch = re.match(r'(\d)', cmd)
+            cmd_log = "Recieved command: " + cmd
+            self.log.debug(cmd_log)
             if cmd == '':
                 pass
             elif cmd == 'q':
-                self.log.debug(f'Recieved command "{cmd}"')
                 quit = True
             elif cmd == 'p':
-                self.log.debug(f'Recieved command "{cmd}"')
                 pass
             elif cmd == 's':
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.start_soundplay()
             elif cmd == 'u':
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.upload_log()
             elif cmd == 'l':
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.print_sessions_found()
             elif cmd == 't':
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.list_tunnels()
             elif cmd == 'v':
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.check_version()
             elif cmatch is not None:
-                self.log.debug(f'Recieved command "{cmd}"')
                 self.close_ssh_thread(int(cmatch.group(1)))
             elif nmatch is not None:
-                self.log.debug(f'Recieved command "{cmd}"')
                 desktop = int(nmatch.group(1)) - 1
                 if desktop >= 0 and desktop < 6:
                     self.start_vnc_session(self.sessions_found[desktop].display)
                 else:
-                    self.log.error(f'Unrecognized desktop: "{cmd}"')
+                    logstr = f"Desktop number {desktop+1} is out of range, must be 1-6"
+                    self.log.error(logstr)
             else:
-                self.log.debug(f'Recieved command "{cmd}"')
-                self.log.error(f'Unrecognized command: "{cmd}"')
+                logstr = f"Unrecognized command: {cmd}"
+                self.log.error(logstr)
 
 
     ##-------------------------------------------------------------------------
@@ -1500,11 +1510,12 @@ class LickVncLauncher(object):
                 self.log.warning('Unable to determine software version on GitHub')
                 return
             if remote_version == local_version:
-                self.log.info(f'Your software is up to date (v{__version__})')
+                logstr = f'Your software is up to date (v{__version__})'
+                self.log.info(logstr)
             else:
-                self.log.warning(f'Your local software (v{__version__}) is not  '
-                                 f'the currently available version '
-                                 f'(v{remote_version})')
+                logstr = f'Your local software (v{__version__}) is not  '
+                logstr += f'the currently available version (v{remote_version})'
+                self.log.warning(logstr)
         except:
             self.log.warning("Unable to verify remote version")
 
@@ -1538,8 +1549,8 @@ class LickVncLauncher(object):
         command.append('-oCompression=yes')
         command.append(source)
         command.append(destination)
-
-        self.log.debug('scp command: ' + ' '.join (command))
+        logstr = 'scp command: ' + ' '.join (command)
+        self.log.debug(logstr)
 
         null = subprocess.DEVNULL
 
@@ -1559,8 +1570,10 @@ class LickVncLauncher(object):
             message = '  command failed with error ' + str(proc.returncode)
             self.log.error(message)
         else:
-            self.log.info(f'  Uploaded {log_file.name}')
-            self.log.info(f'  to {destination}')
+            logstr = '  Uploaded log file:'
+            logstr += f'  {log_file.name}'
+            logstr += f'  to {destination}'
+            self.log.info(logstr)
 
 
     ##-------------------------------------------------------------------------
@@ -1676,6 +1689,7 @@ class LickVncLauncher(object):
         self.test_connection()
         server = self.servers_names[self.args.account]
         self.test_connection_to_servers(server)
+        self.test_vncstatus()
 
 
     ##-------------------------------------------------------------------------
@@ -1763,7 +1777,22 @@ class LickVncLauncher(object):
         assert output != ''
         assert output.strip() in [server, result]
         self.log.info(' Passed')
+    def test_vncstatus(self):
+        '''
+        test_vncstatus(self)
 
+        Tests the vncstatus command on the remote host to see if it is working
+        and returning the expected output.
+        '''
+        vnc_account = self.ssh_account
+        vncserver = self.servers_to_try[self.tel]
+        self.log.info('Testing vncstatus command on %s@%s' % (vnc_account,vncserver))
+        sessions = self.get_vnc_sessions(vnc_account)
+        assert sessions is not None
+        assert sessions != ''
+        assert len(sessions) > 0
+        assert isinstance(sessions[0], VNCSession)
+        self.log.info(' Passed')
 
 
 ##-------------------------------------------------------------------------
