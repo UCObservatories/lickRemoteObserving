@@ -66,21 +66,21 @@ def create_logger():
 
         #file handler (full debug logging)
         log_file = f'logs/lick-remote-log-utc-{ymd}.txt'
-        log_fileHandler = logging.FileHandler(log_file)
-        log_fileHandler.setLevel(logging.DEBUG)
+        log_file_handler = logging.FileHandler(log_file)
+        log_file_handler.setLevel(logging.DEBUG)
         log_format = logging.Formatter('%(asctime)s UT - %(levelname)s: %(message)s')
         log_format.converter = time.gmtime
-        log_fileHandler.setFormatter(log_format)
-        log.addHandler(log_fileHandler)
+        log_file_handler.setFormatter(log_format)
+        log.addHandler(log_file_handler)
 
         #stream/console handler (info+ only)
-        log_consoleHandler = logging.StreamHandler()
-        log_consoleHandler.setLevel(logging.INFO)
+        log_console_handler = logging.StreamHandler()
+        log_console_handler.setLevel(logging.INFO)
         log_format = logging.Formatter(' %(levelname)8s: %(message)s')
         log_format.converter = time.gmtime
-        log_consoleHandler.setFormatter(log_format)
+        log_console_handler.setFormatter(log_format)
 
-        log.addHandler(log_consoleHandler)
+        log.addHandler(log_console_handler)
 
     except Exception as error:
         print(str(error))
@@ -183,7 +183,7 @@ class LickVncLauncher(object):
         self.screens = [[0,0]]
 
         #default start sessions
-        self.DEFAULT_SESSIONS = [
+        self.default_sessions = [
             'Kast blue',
             'Kast red',
             'Kast Guider Camera',
@@ -194,8 +194,8 @@ class LickVncLauncher(object):
 
         #NOTE: 'status' session on different server and always on port 1,
         # so assign localport to constant to avoid conflict
-        self.STATUS_PORT       = ':1'
-        self.LOCAL_PORT_START  = 5901
+        self.status_port       = ':1'
+        self.local_port_start  = 5901
 
 
 
@@ -213,7 +213,8 @@ class LickVncLauncher(object):
         ##---------------------------------------------------------------------
         ## Parse command line args and get config
         ##---------------------------------------------------------------------
-        self.log.debug("\n***** PROGRAM STARTED *****\nCommand: "+' '.join(sys.argv))
+        logstr = f"\n***** PROGRAM STARTED *****\nCommand: {' '.join(sys.argv)}"
+        self.log.debug(logstr)
 
         self.args = create_parser()
         if self.args.account not in ['shane','nickel','apf']:
@@ -320,10 +321,10 @@ class LickVncLauncher(object):
                 break
 
         if not session:
-            self.log.error(f"No server VNC session found for '{session_display}'.")
+            self.log.error("No server VNC session found for '%s'.", session_display)
             self.print_sessions_found()
             return
-        self.log.info(f"Opening VNCviewer for '{session.desktop}'")
+        self.log.info("Opening VNCviewer for '%s'", session.desktop)
         #determine vncserver (only different for "status")
         vncserver = self.vncserver
 
@@ -340,10 +341,10 @@ class LickVncLauncher(object):
 
             # determine if there is already a tunnel for this session
             local_port = None
-            for p in self.ports_in_use.keys():
-                if session_display == self.ports_in_use[p][1]:
+            for p, cons in self.ports_in_use.items():
+                if session_display == cons[1]:
                     local_port = p
-                    self.log.info(f"Found existing SSH tunnel on port {port}")
+                    self.log.info("Found existing SSH tunnel on port %s", port)
                     vncserver = 'localhost'
                     break
 
@@ -354,8 +355,7 @@ class LickVncLauncher(object):
                                                     self.ssh_pkey, port, None,
                                                     session_name=session_display)
                 except:
-                    self.log.error(f"Failed to open SSH tunnel for "
-                              f"{account}@{vncserver}:{port}")
+                    self.log.error("Failed to open SSH tunnel for %s@%s:%s", account, vncserver, port)
                     trace = traceback.format_exc()
                     self.log.debug(trace)
                     return
@@ -415,7 +415,7 @@ class LickVncLauncher(object):
         filename = self.args.config
         if filename is not None:
             if not pathlib.Path(filename).is_file():
-                self.log.error(f'Specified config file "{filename}" does not exist.')
+                self.log.error('Specified config file "%s" does not exist.', filename)
                 self.exit_app()
             else:
                 filenames.insert(0, filename)
@@ -427,17 +427,17 @@ class LickVncLauncher(object):
                 file = f
                 break
         if not file:
-            self.log.error(f'No config files found in list: {filenames}')
+            self.log.error('No config files found in list: %s', filenames)
             self.exit_app()
 
         #load config file and make sure it has the info we need
-        self.log.info(f'Using config file:\n {file}')
+        self.log.info('Using config file:\n %s', file)
 
         # open file a first time just to log the raw contents
         with open(file, encoding='ascii') as file_open:
             contents = file_open.read()
 #             lines = contents.split('/n')
-        self.log.debug(f"Contents of config file: {contents}")
+        self.log.debug('Contents of config file: %s', contents)
 
         # open file a second time to properly read config
         with open(file, encoding='ascii') as file_open:
@@ -451,7 +451,7 @@ class LickVncLauncher(object):
 
         cstr = "Parsed Configuration:\n"
         for key, c in config.items():
-            cstr += f"\t{key} = " + str(c) + "\n"
+            cstr += "\t%s = %s\n" % (key, c)
         self.log.debug(cstr)
 
         self.config = config
@@ -486,16 +486,19 @@ class LickVncLauncher(object):
 
         self.novpn = self.config.get('novpn', False)
         #checks local port start config
-        self.local_port = self.LOCAL_PORT_START
+        self.local_port = self.local_port_start
         lps = self.config.get('local_port_start', None)
-        if lps: self.local_port = lps
+        if lps:
+            self.local_port = lps
 
         self.ssh_cmd = self.config.get('ssh_path', 'ssh')
         try:
             whereisssh = subprocess.check_output(['which', self.ssh_cmd])
-            self.log.debug('SSH command is %s' % whereisssh.decode().strip())
+            logstr = f'SSH command is {whereisssh.decode().strip()}'
+            self.log.debug(logstr)
         except subprocess.CalledProcessError:
-            self.log.error('SSH command %s not found' % self.ssh_cmd)
+            logstr = f'SSH command {self.ssh_cmd} not found'
+            self.log.error(logstr)
             sys.exit()
 
 
@@ -507,7 +510,7 @@ class LickVncLauncher(object):
             sys.exit()
         else:
             if not pathlib.Path(self.ssh_pkey).exists():
-                self.log.warning(f"SSH private key path does not exist: {self.ssh_pkey}")
+                self.log.warning("SSH private key path does not exist: %s", self.ssh_pkey)
                 sys.exit()
 
         self.aplay        = self.config.get('aplay', None)
@@ -515,14 +518,16 @@ class LickVncLauncher(object):
         sysinfo = os.uname()
         if self.soundplayer is not None:
             if sysinfo.sysname == 'Darwin' and 'linux' in self.soundplayer :
-                self.log.warning(f"Running {self.soundplayer} is incompatible with a {sysinfo.sysname} host")
+                self.log.warning("Running %s is incompatible with a %s host",
+                                  self.soundplayer, sysinfo.sysname)
                 self.soundplayer = 'soundplay-107050-8.6.3-macosx10.5-ix86+x86_64'
-                self.log.warning(f"Reseting to {self.soundplayer} ")
+                self.log.warning("Reseting to %s", self.soundplayer)
                 self.pv = '0.01'
             elif sysinfo.sysname == 'Linux' and 'macos' in self.soundplayer:
-                self.log.warning(f"Running {self.soundplayer} is incompatible with a {sysinfo.sysname} host")
+                self.log.warning("Running %s is incompatible with a %s host",
+                                  self.soundplayer, sysinfo.sysname)
                 self.soundplayer = 'soundplay-107098-8.6.3-linux-x86_64'
-                self.log.warning(f"Reseting to {self.soundplayer} ")
+                self.log.warning("Reseting to %s", self.soundplayer)
 
         soundplaytags = self.config.get('soundplaytags', None)
         if soundplaytags is None:
@@ -540,30 +545,19 @@ class LickVncLauncher(object):
 
         Logs basics about the host running the software.
         '''
-        try:
-            self.log.debug(f'System Info: {os.uname()}')
-        except:
-            self.log.debug("os.uname() did not work, hopefully we are on a Windows box")
-            trace = traceback.format_exc()
-            self.log.debug(trace)
 
-        try:
-            hostname = socket.gethostname()
-            self.log.debug(f'System hostname: {hostname}')
-            # ip = socket.gethostbyname(hostname)
-            # self.log.debug(f'System IP Address: {ip}')
-            python_version_str = sys.version.replace("\n", " ")
-            self.log.info(f'Python {python_version_str}')
-            self.log.info(f'Remote Observing Software Version = {__version__}')
-        except :
-            self.log.error("Unable to log system info.")
-            trace = traceback.format_exc()
-            self.log.debug(trace)
+        self.log.debug('System Info: %s', os.uname())
+        hostname = socket.gethostname()
+        self.log.debug('System hostname: %s', hostname)
+        python_version_str = sys.version.replace("\n", " ")
+        self.log.info('Python %s', python_version_str)
+        self.log.info('Remote Observing Software Version = %s', __version__)
+
 
     ##-------------------------------------------------------------------------
     ## Figure out how to ping
     ##-------------------------------------------------------------------------
-            
+
     def get_ping_cmd(self):
         '''Assemble the local ping command.
         '''
@@ -578,18 +572,18 @@ class LickVncLauncher(object):
             self.log.error(e)
             return None
 
-        os = platform.system()
-        os = os.lower()
+        os_name = platform.system()
+        os_name = os_name.lower()
         # One ping only
         # Wait up to 2 seconds for a response.
-        if os == 'linux':
+        if 'linux' in os_name:
             self.ping_cmd.extend(['-c', '1', '-w', 'wait'])
-        elif os == 'darwin':
+        elif 'darwin' in os_name:
             self.ping_cmd.extend(['-c', '1', '-W', 'wait000'])
         else:
             # Don't understand how ping works on this platform.
             self.ping_cmd = None
-        self.log.debug(f'Got ping command: {self.ping_cmd[:-2]}')
+        self.log.debug('Got ping command: %s', self.ping_cmd[:-2])
 
     ##-------------------------------------------------------------------------
     ## Ping hosts
@@ -605,18 +599,18 @@ class LickVncLauncher(object):
         ping_cmd = [x.replace('wait', f'{int(wait)}') for x in self.ping_cmd]
         ping_cmd.append(address)
         self.log.debug(' '.join(ping_cmd))
-        output = subprocess.run(ping_cmd,
+        output = subprocess.run(ping_cmd,check=False,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         if output.returncode != 0:
             self.log.debug("Ping command failed")
-            self.log.debug(f"STDOUT: {output.stdout.decode()}")
-            self.log.debug(f"STDERR: {output.stderr.decode()}")
+            self.log.debug("STDOUT: %s", output.stdout.decode())
+            self.log.debug("STDERR: %s", output.stderr.decode())
             return False
         else:
             self.log.debug("Ping command succeeded")
-            self.log.debug(f"STDOUT: {output.stdout.decode()}")
-            self.log.debug(f"STDERR: {output.stderr.decode()}")
+            self.log.debug("STDOUT: %s", output.stdout.decode())
+            self.log.debug("STDERR: %s", output.stderr.decode())
             return True
 
     ##-------------------------------------------------------------------------
@@ -631,8 +625,8 @@ class LickVncLauncher(object):
             self.log.warning('No ping command defined.  Unable to test localhost.')
             return 0
         if self.ping('localhost') is False:
-            self.log.error(f"localhost appears not to be configured")
-            self.log.error(f"Your /etc/hosts file may need to be updated")
+            self.log.error("localhost appears not to be configured")
+            self.log.error("Your /etc/hosts file may need to be updated")
             failcount += 1
 
         return failcount
@@ -652,8 +646,8 @@ class LickVncLauncher(object):
 
 
         cmd = [vncviewercmd, '--help']
-        self.log.debug(f'Checking VNC viewer: {" ".join(cmd)}')
-        result = subprocess.run(cmd, capture_output=True)
+        self.log.debug('Checking VNC viewer: %s', ' '.join(cmd))
+        result = subprocess.run(cmd, capture_output=True, check=False)
         output = result.stdout.decode() + '\n' + result.stderr.decode()
         if re.search(r'TigerVNC', output):
             self.log.info('We ARE using TigerVNC')
@@ -701,9 +695,9 @@ class LickVncLauncher(object):
         else:
             print("\nSSH tunnels:")
             print("  Local Port | Desktop   | Remote Connection")
-            for p in self.ports_in_use.keys():
-                desktop = self.ports_in_use[p][1]
-                remote_connection = self.ports_in_use[p][0]
+            for p, cons in self.ports_in_use.items():
+                desktop = cons[1]
+                remote_connection = cons[0]
                 print(f"  {p:10d} | {desktop:9s} | {remote_connection:s}")
 
 
@@ -747,14 +741,13 @@ class LickVncLauncher(object):
         #if we can't find an open port, error and return
         if not local_port:
             self.log.error("Could not find an open local port for SSH tunnel "
-                           f"to {username}@{server}:{remote_port}")
-            self.local_port = self.LOCAL_PORT_START
+                           "to %s", f"{username}@{server}:{remote_port}")
+            self.local_port = self.local_port_start
             return False
 
         #log
         address_and_port = f"{username}@{server}:{remote_port}"
-        self.log.info(f"Opening SSH tunnel for {address_and_port} "
-                 f"on local port {local_port}.")
+        self.log.info("Opening SSH tunnel for %s on local port %d", address_and_port, local_port)
 
         # build the command
         forwarding = f"{local_port}:localhost:{remote_port}"
@@ -766,7 +759,7 @@ class LickVncLauncher(object):
             command.append('-i')
             command.append(ssh_pkey)
 
-        self.log.debug('ssh command: ' + ' '.join (command))
+        self.log.debug('ssh command: %s', ' '.join (command))
         null = subprocess.DEVNULL
         proc = subprocess.Popen(command,stdin=null,stdout=null,stderr=null)
 
@@ -818,18 +811,18 @@ class LickVncLauncher(object):
 
         if self.check_cmd in ("ps","ss","lsof","netstat.exe"):
             try:
-                cmd = subprocess.check_output(['which', self.check_cmd])
+                _ = subprocess.check_output(['which', self.check_cmd])
                 return
-            except:
-                self.log.debug(f"{self.args.check} is not found")
+            except subprocess.CalledProcessError:
+                self.log.debug("%s is not found", self.args.check)
 
         for tst_cmd in ("ss","lsof","netstat.exe","ps"):
             try:
-                cmd = subprocess.check_output(['which', tst_cmd])
+                _ = subprocess.check_output(['which', tst_cmd])
                 self.check_cmd = tst_cmd
                 return
             except subprocess.CalledProcessError:
-                self.log.debug(f"{tst_cmd} is not found")
+                self.log.debug("%s is not found", tst_cmd)
 
 
         return
@@ -856,13 +849,13 @@ class LickVncLauncher(object):
         else:
             cmd = f'ps aux | grep "{port}:" | grep -v grep'
 
-        self.log.debug(f'Checking for port {port} in use: {cmd}')
+        self.log.debug('Checking for port %d in use: %s', port, cmd)
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
         data = proc.communicate()[0]
         data = data.decode("utf-8").strip()
         lines = data.split('\n') if data else list()
         if lines:
-            self.log.debug(f"Port {port} is in use.")
+            self.log.debug("Port %d is in use.", port)
             return True
         else:
             return False
@@ -932,7 +925,7 @@ class LickVncLauncher(object):
         else:
             cmd.append(f'{vncprefix}{vncserver}::{port:4d}')
 
-        self.log.debug(f"VNC viewer command: {cmd}")
+        self.log.debug("VNC viewer command: %s", cmd)
         null = subprocess.DEVNULL
         proc = subprocess.Popen(cmd,stdin=null,stdout=null,stderr=null)
 
@@ -1007,10 +1000,10 @@ class LickVncLauncher(object):
 
         command = [soundplayer, '-l']
 
-        self.log.info('Calling: ' + ' '.join (command))
-        test_sound_STDOUT = subprocess.check_output(command)
-        for line in test_sound_STDOUT.decode().split('\n'):
-            self.log.debug(f'  {line}')
+        self.log.info('Calling: %s', ' '.join (command))
+        test_sound_stdout = subprocess.check_output(command)
+        for line in test_sound_stdout.decode().split('\n'):
+            self.log.debug('  %s', line)
 
     ##-------------------------------------------------------------------------
     ## Guess which soundplay to use if not specified
@@ -1072,7 +1065,8 @@ class LickVncLauncher(object):
 
         '''
         output = None
-        self.log.debug(f'Trying SSH connect to {server} as {account}:')
+        logstr = f'Trying SSH connect to {server} as {account}:'
+        self.log.debug(logstr)
         command = [self.ssh_cmd, server, '-l', account, '-T', '-x']
 
         if self.ssh_pkey is not None:
@@ -1083,7 +1077,8 @@ class LickVncLauncher(object):
         command.append('KexAlgorithms=+diffie-hellman-group1-sha1')
 
         command.append(cmd)
-        self.log.debug('ssh command: %s' % (' '.join (command)))
+        logstr = f"SSH command: {' '.join(command)}"
+        self.log.debug(logstr)
 
         pipe = subprocess.PIPE
         null = subprocess.DEVNULL
@@ -1098,13 +1093,16 @@ class LickVncLauncher(object):
             stdout,_ = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
-            stdout,stderr = proc.communicate(timeout=timeout)
+            stdout,_ = proc.communicate(timeout=timeout)
             self.log.error('  Timeout')
             return None
 
         stdout = stdout.decode()
         stdout = stdout.strip()
-        self.log.debug(f"Output: '{stdout}'")
+        logstr = f"SSH command output from {server}:"
+        self.log.debug(logstr)
+        logstr = f"Output: '{stdout}'"
+        self.log.debug(logstr)
 
         if proc.returncode != 0:
             message = '  command failed with error ' + str(proc.returncode)
@@ -1155,7 +1153,7 @@ class LickVncLauncher(object):
             self.connection_valid = True
             return
 
-        self.log.info(f"Validating connection...")
+        self.log.info("Validating connection...")
         if self.tel is None:
             self.log.error(" Cannot conncet with undefined telescope")
             return
@@ -1172,9 +1170,11 @@ class LickVncLauncher(object):
             if correct_cmd is None:
                 try:
                     data = subprocess.check_output(['which', cmd])
-                    self.log.info(f'  Command {cmd} found')
-                except Exception as e:
-                    self.log.debug('  Failed to find command ' +str(cmd) + ' ' + str(e))
+                    logstr = f"  Found command {cmd}"
+                    self.log.info(logstr)
+                except subprocess.CalledProcessError as e:
+                    logstr = f"  Failed to find command {cmd} {e}"
+                    self.log.debug(logstr)
                     data = None
                 if data:
                     data = data.decode().strip()
@@ -1198,9 +1198,11 @@ class LickVncLauncher(object):
 
 
         if self.connection_valid:
-            self.log.info(" Connection  OK")
+            logstr = " Connection  OK"
+            self.log.info(logstr)
         else:
-            self.log.error("  Connection failed - check VPN connection, is it running?")
+            logstr = "  Connection failed - check VPN connection, is it running?"
+            self.log.error(logstr)
 
     ##-------------------------------------------------------------------------
     ## Ensure that the ssh key file has the right mode
@@ -1253,22 +1255,28 @@ class LickVncLauncher(object):
         self.vncserver = self.servers_to_try[self.tel]
         vncserver = self.vncserver
 
-        self.log.info(f"Connecting to {account}@{vncserver} to get VNC sessions list")
+        logstr = f"Connecting to {account}@{vncserver} to get VNC sessions list"
+        self.log.info(logstr)
 
         sessions = []
-        cmd = f"vncstatus"
+        cmd = "vncstatus"
         try:
             data = self.do_ssh_cmd(cmd, vncserver, account)
         except Exception as e:
-            self.log.error('  Failed: ' + str(e))
+            logstr = '  Failed: %s' % str(e)
+            self.log.error(logstr)
             trace = traceback.format_exc()
             self.log.debug(trace)
             self.exit_app('Failed at obtaining list of VNC sessions, see log.')
 
         if data is None or data == '':
-            self.exit_app('Failed at obtaining list of VNC sessions, see log.')
+            logstr = 'Failed at obtaining list of VNC sessions, see log.'
+            self.log.error(logstr)
+            self.exit_app(logstr)
         if re.search('Connection refused', data):
-            self.exit_app('Failed at obtaining list of VNC sessions, ssh connection refused, see log.')
+            logstr = 'Failed at obtaining list of VNC sessions, ssh connection refused, see log.'
+            self.log.error(logstr)
+            self.exit_app(logstr)
 
         self.ssh_key_valid = True
         lns = data.split("\n")
@@ -1284,7 +1292,8 @@ class LickVncLauncher(object):
             display = fields[0].strip()
             if display == 'Usage':
                 # this should not happen
-                self.log.error(f'{self.tel} not supported on host {vncserver}')
+                logstr = f'{self.tel} not supported on host {vncserver}'
+                self.log.error(logstr)
                 break
 
             desktop = fields[1].strip()
@@ -1292,9 +1301,11 @@ class LickVncLauncher(object):
             s = VNCSession(name=name, display=display, desktop=desktop, user=account)
             sessions.append(s)
 
-        self.log.debug(f'  Got {len(sessions)} sessions')
+        logstr = f'  Got {len(sessions)} sessions'
+        self.log.debug(logstr)
         for s in sessions:
-            self.log.debug(str(s))
+            logstr = str(s)
+            self.log.debug(logstr)
 
         return sessions
 
@@ -1316,9 +1327,8 @@ class LickVncLauncher(object):
                 remote_connection, desktop, process = self.ports_in_use.pop(p, None)
             except KeyError:
                 return
-
-            self.log.info(f" Closing SSH tunnel for port {p:d}, {desktop:s} "
-                     f"on {remote_connection:s}")
+            logstr = f"Closing SSH tunnel for port {p:d}, {desktop:s} on {remote_connection:s}"
+            self.log.info(logstr)
             process.kill()
 
 
@@ -1349,45 +1359,55 @@ class LickVncLauncher(object):
         self.log.debug('Determining display info')
         try:
             xpdyinfo = subprocess.run('xdpyinfo', stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, timeout=5)
+                                       stderr=subprocess.PIPE, timeout=5,
+                                       check=False)
 
         except subprocess.TimeoutExpired as e:
             # If xpdyinfo fails just log and keep going
-            self.log.debug('xpdyinfo failed')
+            logstr = 'xpdyinfo failed'
+            self.log.debug(logstr)
             self.log.debug(e)
             return
         except TimeoutError as e:
             # If xpdyinfo fails just log and keep going
-            self.log.debug('xpdyinfo failed')
+            logstr = 'xpdyinfo failed'
+            self.log.debug(logstr)
             self.log.debug(e)
             return
         except FileNotFoundError as e:
-            self.log.debug('xpdyinfo does not exist')
+            logstr = 'xpdyinfo does not exist'
+            self.log.debug(logstr)
             self.log.debug(e)
             return
 
 
         stdout = xpdyinfo.stdout.decode()
         if xpdyinfo.returncode != 0:
-            self.log.debug('xpdyinfo failed')
+            logstr = 'xpdyinfo failed'
+            self.log.debug(logstr)
             for line in stdout.split('\n'):
-                self.log.debug("xdpyinfo: %s" % line)
+                logstr = f"xdpyinfo: {line}"
+                self.log.debug(logstr)
             stderr = xpdyinfo.stderr.decode()
             for line in stderr.split('\n'):
-                self.log.debug("xdpyinfo: %s" % line)
+                logstr = f"xdpyinfo: {line}"
+                self.log.debug(logstr)
             return None
         find_nscreens = re.search(r'number of screens:\s+(\d+)', stdout)
         nscreens = int(find_nscreens.group(1)) if find_nscreens is not None else 1
-        self.log.debug('Number of screens = %d' % nscreens)
+        logstr = f'Number of screens = {nscreens}'
+        self.log.debug(logstr)
 
         find_dimensions = re.findall(r'dimensions:\s+(\d+)x(\d+)', stdout)
         if len(find_dimensions) == 0:
-            self.log.debug('Could not find screen dimensions')
+            logstr = 'Could not find screen dimensions'
+            self.log.debug(logstr)
             return None
         # convert values from strings to int
         self.screens = [[int(val) for val in line] for line in find_dimensions]
         for screen in self.screens:
-            self.log.debug("Screen size: %dx%d" % (screen[0], screen[1]))
+            logstr = f"Screen size: {screen[0]}x{screen[1]}"
+            self.log.debug(logstr)
 
 
     def calc_window_geometry(self):
@@ -1412,7 +1432,10 @@ class LickVncLauncher(object):
                         x = window_positions[index][0]
                         y = window_positions[index][1]
                     self.geometry.append([x, y])
-        self.log.debug('geometry: %s' % str(self.geometry))
+        logstr = "Calculated window geometry: "
+        for i in range(0, len(self.geometry)):
+            logstr += f"Session {i+1}: {self.geometry[i][0]}x{self.geometry[i][1]} "
+        self.log.debug(logstr)
 
 
     ##-------------------------------------------------------------------------
@@ -1448,8 +1471,8 @@ class LickVncLauncher(object):
             menu += '|' + newline + ' '*(line_length-len(newline)-1) + '|\n'
         menu += "> "
 
-        quit = None
-        while quit is None:
+        should_quit = None
+        while should_quit is None:
             cmd = input(menu).lower()
             cmatch = re.match(r'c (\d+)', cmd)
             nmatch = re.match(r'(\d)', cmd)
@@ -1458,7 +1481,7 @@ class LickVncLauncher(object):
             if cmd == '':
                 pass
             elif cmd == 'q':
-                quit = True
+                should_quit = True
             elif cmd == 'p':
                 pass
             elif cmd == 's':
@@ -1597,11 +1620,12 @@ class LickVncLauncher(object):
             #NOTE: poll() value of None means it still exists.
             while self.vnc_processes:
                 proc = self.vnc_processes.pop()
-                self.log.debug('terminating VNC process: %s' % str(proc.args))
+                logstr = f'terminating VNC process: {proc.args}'
+                self.log.debug(logstr)
                 if proc.poll() is None:
                     proc.terminate()
 
-        except:
+        except Exception:
             self.log.error("Failed to terminate VNC sessions.  See log for details.")
             trace = traceback.format_exc()
             self.log.debug(trace)
@@ -1624,7 +1648,7 @@ class LickVncLauncher(object):
             return
 
         #todo: Fix app exit so certain clean ups don't cause errors (ie thread not started, etc
-        if msg is not None: 
+        if msg is not None:
             self.log.info(msg)
 
         #terminate soundplayer
@@ -1655,10 +1679,10 @@ class LickVncLauncher(object):
 
         '''
         #helpful user error message
-        supportEmail = 'holden@ucolick.org'
+        support_email = 'holden@ucolick.org'
         print("Error message: " + str(error) + "\n")
         print("If you need troubleshooting assistance:")
-        print(f"* Email {supportEmail}\n")
+        print(f"* Email {support_email}\n")
 
         #Log error if we have a log object (otherwise dump error to stdout)
         #and call exit_app function
@@ -1666,7 +1690,8 @@ class LickVncLauncher(object):
         if self.log:
             log_file = self.log.handlers[0].baseFilename
             print(f"* Attach log file at: {log_file}\n")
-            self.log.debug("\n\n!!!!! PROGRAM ERROR:\n%s\n" % msg)
+            logstr = f"\n\n!!!!! PROGRAM ERROR:\n{msg}\n"
+            self.log.debug(logstr)
         else:
             print(msg)
 
@@ -1709,12 +1734,12 @@ class LickVncLauncher(object):
             self.guess_vncviewer()
             try:
                 vncviewer = subprocess.check_output(['which', 'vncviewer']).strip()
-            except:
+            except subprocess.CalledProcessError:
                 self.log.error('Cannot find vncviewer and it is not defined in the config file.')
                 return
         if vncviewer != 'open':
             assert os.path.exists(vncviewer)
-            self.log.info(f' Passed')
+            self.log.info(' Passed')
 
 
     ##-------------------------------------------------------------------------
@@ -1732,12 +1757,13 @@ class LickVncLauncher(object):
         '''
 
 
-        self.log.info('Testing port lookup')
+        logstr = 'Testing port lookup'
+        self.log.info(logstr)
 
         one_works = self.check_cmd is not None
         assert one_works
         self.log.info(' Passed')
-        assert self.is_local_port_in_use(self.LOCAL_PORT_START) is False
+        assert self.is_local_port_in_use(self.local_port_start) is False
         self.log.info(' Passed')
 
     ##-------------------------------------------------------------------------
@@ -1770,13 +1796,15 @@ class LickVncLauncher(object):
         '''
         vnc_account = self.ssh_account
         result = f'{server}'
-        self.log.info('Testing SSH to %s@%s' % (vnc_account,result))
+        logstr = f'Testing SSH to {vnc_account}@{result}'
+        self.log.info(logstr)
         output = self.do_ssh_cmd('hostname', result,
                                 vnc_account)
         assert output is not None
         assert output != ''
         assert output.strip() in [server, result]
         self.log.info(' Passed')
+
     def test_vncstatus(self):
         '''
         test_vncstatus(self)
@@ -1786,7 +1814,8 @@ class LickVncLauncher(object):
         '''
         vnc_account = self.ssh_account
         vncserver = self.servers_to_try[self.tel]
-        self.log.info('Testing vncstatus command on %s@%s' % (vnc_account,vncserver))
+        logstr = f'Testing vncstatus command on {vnc_account}@{vncserver}'
+        self.log.info(logstr)
         sessions = self.get_vnc_sessions(vnc_account)
         assert sessions is not None
         assert sessions != ''
