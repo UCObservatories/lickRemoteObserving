@@ -170,13 +170,13 @@ class LickVncLauncher(object):
         self.ping_cmd      = None
         self.servers_to_try = {'shane' : '128.114.176.21',
                                    'nickel' : '128.114.176.6',
-                                   'apf' : '128.114.17.109'}
+                                   'apf' : '128.114.17.105'}
         self.soundservers = {'shane' : '128.114.176.21',
                                    'nickel' : '128.114.176.6',
-                                   'apf' : '128.114.17.109'}
+                                   'apf' : '128.114.17.105'}
         self.servers_names = {'shane' : 'shimmy.ucolick.org',
                                    'nickel' : 'noir.ucolick.org',
-                                   'apf' : 'frankfurt.ucolick.org'}
+                                   'apf' : 'mainz.ucolick.org'}
 
         self.geometry = list()
         self.vncviewer_has_geometry = False
@@ -1259,7 +1259,7 @@ class LickVncLauncher(object):
         self.log.info(logstr)
 
         sessions = []
-        cmd = "vncstatus"
+        cmd = "~/bin/vncstatus"
         try:
             data = self.do_ssh_cmd(cmd, vncserver, account)
         except Exception as e:
