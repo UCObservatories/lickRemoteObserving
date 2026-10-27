@@ -3,12 +3,13 @@ from __future__ import print_function
 import subprocess
 import re
 
+VNC = 'Xtigervnc'
 
 def run_ps():
     """
     Run the ps command to get the list of Xvnc processes and their arguments.
     """
-    cmd = 'ps -C Xvnc -o args'
+    cmd = 'ps -C %s -o args' % (VNC)
     cmdargs = cmd.split()
     data = subprocess.check_output(cmdargs)
     return data.decode("utf-8")
